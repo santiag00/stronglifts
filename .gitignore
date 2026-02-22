@@ -1,0 +1,7 @@
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+dist/
+*.db
+*.db-journal
+.DS_Store
