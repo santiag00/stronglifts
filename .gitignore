@@ -4,4 +4,5 @@ src-tauri/gen/
 dist/
 *.db
 *.db-journal
+*.app
 .DS_Store

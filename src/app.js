@@ -1,6 +1,7 @@
 const { invoke } = window.__TAURI__.core;
 const { sendNotification, isPermissionGranted, requestPermission } =
   window.__TAURI__.notification;
+const { getCurrentWindow } = window.__TAURI__.window;
 
 let currentView = "dashboard";
 let timerInterval = null;
@@ -387,6 +388,9 @@ function startTimer() {
           body: "Rest is over — time for your next set!",
         });
       }
+      try {
+        await getCurrentWindow().requestUserAttention(2);
+      } catch (_) {}
       render();
     }
   }, 1000);

@@ -26,17 +26,29 @@ Built with **Tauri v2** (Rust backend + vanilla HTML/CSS/JS frontend) and **SQLi
 - [Rust](https://rustup.rs/) (1.77.2+)
 - [Node.js](https://nodejs.org/) (18+)
 
+## Install
+
+Build and install to `/Applications` (adds to Launchpad and Dock):
+
+```bash
+npm install    # first time only
+./build.sh
+```
+
+Then open **Stronglifts** from Launchpad, or drag it from `/Applications` to your Dock.
+
+## Rebuild after code changes
+
+```bash
+./build.sh
+```
+
+Incremental Rust builds take ~2-3 seconds. The script rebuilds and copies to `/Applications`.
+
 ## Development
 
+For live development (slower initial build, auto-reloads on Rust changes):
+
 ```bash
-npm install
 npm run tauri dev
 ```
-
-## Build
-
-```bash
-npm run tauri build
-```
-
-The built `.app` will be in `src-tauri/target/release/bundle/macos/`.
