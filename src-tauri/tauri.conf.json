@@ -19,10 +19,10 @@
       {
         "title": "Stronglifts 5×5",
         "width": 480,
-        "height": 720,
+        "height": 900,
         "resizable": true,
         "minWidth": 400,
-        "minHeight": 600
+        "minHeight": 700
       }
     ],
     "security": {

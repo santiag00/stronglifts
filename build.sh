@@ -11,6 +11,7 @@ cd ..
 
 echo "Updating app bundle..."
 cp src-tauri/target/release/stronglifts Stronglifts.app/Contents/MacOS/Stronglifts
+rm -rf /Applications/Stronglifts.app
 cp -R Stronglifts.app /Applications/Stronglifts.app
 
 echo "Done! Stronglifts.app has been updated in /Applications."

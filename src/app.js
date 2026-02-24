@@ -6,6 +6,8 @@ const { getCurrentWindow } = window.__TAURI__.window;
 let currentView = "dashboard";
 let timerInterval = null;
 let timerSeconds = 0;
+let timerExpired = false;
+let timerNotified = false;
 
 async function ensureNotificationPermission() {
   let granted = await isPermissionGranted();
@@ -196,10 +198,14 @@ async function renderWorkout() {
     })
     .join("");
 
-  const timerHtml = timerInterval
-    ? `<div class="timer-container ${timerSeconds <= 30 ? "urgent" : ""}">
+  let timerClass = "";
+  if (timerSeconds <= 0 && isTimerRunning()) timerClass = "overdue";
+  else if (timerSeconds <= 30 && isTimerRunning()) timerClass = "urgent";
+
+  const timerHtml = isTimerRunning()
+    ? `<div class="timer-container ${timerClass}">
         <div class="timer-display">${formatTimer(timerSeconds)}</div>
-        <div class="timer-label">Rest timer</div>
+        <div class="timer-label">${timerSeconds <= 0 ? "Go! You're past rest time" : "Rest timer"}</div>
        </div>`
     : "";
 
@@ -216,13 +222,70 @@ async function renderWorkout() {
 // ─── Congratulations ───
 
 function renderCongrats() {
+  setTimeout(launchConfetti, 100);
   return `
     <div class="congrats">
-      <div class="trophy">🏋️</div>
-      <h2>Workout Complete!</h2>
-      <p>Great job! Rest up and come back stronger next time.</p>
-      <button class="btn btn-primary" data-action="go-dashboard">Done</button>
+      <canvas id="confetti-canvas"></canvas>
+      <div class="congrats-content">
+        <div class="trophy animate-trophy">🏋️</div>
+        <h2 class="animate-fade-up" style="animation-delay:0.3s">Workout Complete!</h2>
+        <p class="animate-fade-up" style="animation-delay:0.5s">Great job! Rest up and come back stronger next time.</p>
+        <button class="btn btn-primary animate-fade-up" style="animation-delay:0.7s" data-action="go-dashboard">Done</button>
+      </div>
     </div>`;
+}
+
+function launchConfetti() {
+  const canvas = document.getElementById("confetti-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  canvas.width = canvas.parentElement.offsetWidth;
+  canvas.height = canvas.parentElement.offsetHeight;
+
+  const colors = ["#e94560", "#2ed573", "#ffa502", "#3742fa", "#ff6b81", "#70a1ff", "#eccc68"];
+  const pieces = [];
+
+  for (let i = 0; i < 120; i++) {
+    pieces.push({
+      x: canvas.width / 2,
+      y: canvas.height / 2 - 60,
+      vx: (Math.random() - 0.5) * 16,
+      vy: Math.random() * -14 - 4,
+      w: Math.random() * 8 + 4,
+      h: Math.random() * 6 + 3,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      rotation: Math.random() * 360,
+      rotSpeed: (Math.random() - 0.5) * 12,
+      gravity: 0.25 + Math.random() * 0.15,
+      opacity: 1,
+    });
+  }
+
+  let frame = 0;
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    let alive = false;
+    for (const p of pieces) {
+      p.x += p.vx;
+      p.vy += p.gravity;
+      p.y += p.vy;
+      p.vx *= 0.99;
+      p.rotation += p.rotSpeed;
+      if (frame > 60) p.opacity -= 0.01;
+      if (p.opacity <= 0) continue;
+      alive = true;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rotation * Math.PI) / 180);
+      ctx.globalAlpha = Math.max(0, p.opacity);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      ctx.restore();
+    }
+    frame++;
+    if (alive && frame < 200) requestAnimationFrame(draw);
+  }
+  draw();
 }
 
 // ─── History ───
@@ -376,11 +439,15 @@ async function renderSettings() {
 function startTimer() {
   clearTimer();
   timerSeconds = 180;
+  timerExpired = false;
+  timerNotified = false;
   timerInterval = setInterval(async () => {
     timerSeconds--;
     updateTimerDisplay();
-    if (timerSeconds <= 0) {
-      clearTimer();
+    if (timerSeconds <= 0 && !timerNotified) {
+      timerNotified = true;
+      timerExpired = true;
+      playTimerSound();
       const granted = await ensureNotificationPermission();
       if (granted) {
         sendNotification({
@@ -391,7 +458,6 @@ function startTimer() {
       try {
         await getCurrentWindow().requestUserAttention(2);
       } catch (_) {}
-      render();
     }
   }, 1000);
   render();
@@ -401,8 +467,14 @@ function clearTimer() {
   if (timerInterval) {
     clearInterval(timerInterval);
     timerInterval = null;
-    timerSeconds = 0;
   }
+  timerSeconds = 0;
+  timerExpired = false;
+  timerNotified = false;
+}
+
+function isTimerRunning() {
+  return timerInterval !== null;
 }
 
 function updateTimerDisplay() {
@@ -411,16 +483,49 @@ function updateTimerDisplay() {
   if (el) {
     el.textContent = formatTimer(timerSeconds);
     if (container) {
-      if (timerSeconds <= 30) container.classList.add("urgent");
-      else container.classList.remove("urgent");
+      if (timerSeconds <= 0) {
+        container.classList.add("overdue");
+        container.classList.remove("urgent");
+      } else if (timerSeconds <= 30) {
+        container.classList.add("urgent");
+        container.classList.remove("overdue");
+      } else {
+        container.classList.remove("urgent");
+        container.classList.remove("overdue");
+      }
     }
   }
 }
 
 function formatTimer(sec) {
+  if (sec < 0) {
+    const abs = Math.abs(sec);
+    const m = Math.floor(abs / 60);
+    const s = abs % 60;
+    return `-${m}:${String(s).padStart(2, "0")}`;
+  }
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function playTimerSound() {
+  try {
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = [880, 1108.73, 1318.51];
+    notes.forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.3, audioCtx.currentTime + i * 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + i * 0.15 + 0.4);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(audioCtx.currentTime + i * 0.15);
+      osc.stop(audioCtx.currentTime + i * 0.15 + 0.4);
+    });
+  } catch (_) {}
 }
 
 // ─── Event Binding ───
@@ -586,5 +691,6 @@ function formatDate(isoStr) {
 
 document.addEventListener("DOMContentLoaded", () => {
   ensureNotificationPermission();
+  document.getElementById("app").classList.add("app-enter");
   render();
 });
