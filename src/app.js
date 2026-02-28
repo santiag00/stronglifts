@@ -6,7 +6,8 @@ const { getCurrentWindow } = window.__TAURI__.window;
 let currentView = "dashboard";
 let timerInterval = null;
 let timerSeconds = 0;
-let timerExpired = false;
+let timerStartedAt = 0;
+const TIMER_DURATION = 180;
 let timerNotified = false;
 
 async function ensureNotificationPermission() {
@@ -438,15 +439,15 @@ async function renderSettings() {
 
 function startTimer() {
   clearTimer();
-  timerSeconds = 180;
-  timerExpired = false;
+  timerStartedAt = performance.now();
+  timerSeconds = TIMER_DURATION;
   timerNotified = false;
   timerInterval = setInterval(async () => {
-    timerSeconds--;
+    const elapsed = (performance.now() - timerStartedAt) / 1000;
+    timerSeconds = Math.round(TIMER_DURATION - elapsed);
     updateTimerDisplay();
     if (timerSeconds <= 0 && !timerNotified) {
       timerNotified = true;
-      timerExpired = true;
       playTimerSound();
       const granted = await ensureNotificationPermission();
       if (granted) {
@@ -459,7 +460,7 @@ function startTimer() {
         await getCurrentWindow().requestUserAttention(2);
       } catch (_) {}
     }
-  }, 1000);
+  }, 250);
   render();
 }
 
@@ -469,7 +470,7 @@ function clearTimer() {
     timerInterval = null;
   }
   timerSeconds = 0;
-  timerExpired = false;
+  timerStartedAt = 0;
   timerNotified = false;
 }
 
